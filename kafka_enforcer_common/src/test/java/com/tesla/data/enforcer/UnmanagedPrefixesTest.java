@@ -16,7 +16,8 @@ public class UnmanagedPrefixesTest {
 
   private static final UnmanagedPrefixes PREFIXES = UnmanagedPrefixes.from(Map.of(
       "topicPrefixes", List.of("ext-", "vendor-"),
-      "groupPrefixes", List.of("extgrp-")));
+      "groupPrefixes", List.of("extgrp-"),
+      "principalPrefixes", List.of("ds-")));
 
   @Test
   public void testAbsentSectionIsNone() {
@@ -24,12 +25,14 @@ public class UnmanagedPrefixesTest {
     Assert.assertSame(UnmanagedPrefixes.NONE, prefixes);
     Assert.assertTrue(prefixes.topicPrefixes().isEmpty());
     Assert.assertTrue(prefixes.groupPrefixes().isEmpty());
+    Assert.assertTrue(prefixes.principalPrefixes().isEmpty());
   }
 
   @Test
   public void testParsesPrefixes() {
     Assert.assertEquals(Set.of("ext-", "vendor-"), PREFIXES.topicPrefixes());
     Assert.assertEquals(Set.of("extgrp-"), PREFIXES.groupPrefixes());
+    Assert.assertEquals(Set.of("ds-"), PREFIXES.principalPrefixes());
   }
 
   @Test
@@ -74,6 +77,11 @@ public class UnmanagedPrefixesTest {
   }
 
   @Test(expected = IllegalArgumentException.class)
+  public void testRejectsEmptyPrincipalPrefix() {
+    UnmanagedPrefixes.from(Map.of("principalPrefixes", List.of("")));
+  }
+
+  @Test(expected = IllegalArgumentException.class)
   public void testRejectsBlankPrefix() {
     UnmanagedPrefixes.from(Map.of("groupPrefixes", List.of("   ")));
   }
@@ -96,12 +104,19 @@ public class UnmanagedPrefixesTest {
     // topic prefixes do not apply to groups and vice versa
     Assert.assertFalse(PREFIXES.isUnmanagedGroup("ext-reader"));
     Assert.assertFalse(PREFIXES.isUnmanagedTopic("extgrp-orders"));
+    Assert.assertTrue(PREFIXES.isUnmanagedPrincipal("ds-app"));
+    Assert.assertFalse(PREFIXES.isUnmanagedPrincipal("DS-app"));
+    Assert.assertFalse(PREFIXES.isUnmanagedPrincipal("app"));
+    // resource prefixes do not apply to principals and vice versa
+    Assert.assertFalse(PREFIXES.isUnmanagedPrincipal("ext-app"));
+    Assert.assertFalse(PREFIXES.isUnmanagedTopic("ds-orders"));
   }
 
   @Test
   public void testNoneMatchesNothing() {
     Assert.assertFalse(UnmanagedPrefixes.NONE.isUnmanagedTopic("_foo"));
     Assert.assertFalse(UnmanagedPrefixes.NONE.isUnmanagedGroup("foo"));
+    Assert.assertFalse(UnmanagedPrefixes.NONE.isUnmanagedPrincipal("foo"));
   }
 
   @Test
@@ -110,6 +125,7 @@ public class UnmanagedPrefixesTest {
     Assert.assertTrue(extended.isUnmanagedTopic("_internal"));
     Assert.assertTrue(extended.isUnmanagedTopic("ext-orders"));
     Assert.assertEquals(PREFIXES.groupPrefixes(), extended.groupPrefixes());
+    Assert.assertEquals(PREFIXES.principalPrefixes(), extended.principalPrefixes());
     Assert.assertFalse(PREFIXES.isUnmanagedTopic("_internal"));
   }
 

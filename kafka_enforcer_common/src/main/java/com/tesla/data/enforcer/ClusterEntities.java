@@ -8,10 +8,12 @@ import static tesla.shade.com.google.common.base.Preconditions.checkArgument;
 
 import tesla.shade.com.google.common.collect.Sets;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -98,6 +100,28 @@ public class ClusterEntities {
           // add the config for the given cluster
           return applyOverrides(baseConfig, clusters.get(cluster));
         }).collect(Collectors.toList());
+  }
+
+  /**
+   * Get all values of an entity property, from its base config and from every cluster override, ex: to validate a
+   * property of a consolidated config regardless of clusters.
+   *
+   * @param entity   an un-parsed entity
+   * @param property the name of the property
+   * @return non-null values of the property, the base value first
+   */
+  public static List<Object> propertyValues(Map<String, Object> entity, String property) {
+    List<Object> values = new ArrayList<>();
+    values.add(entity.get(property));
+    Object clusters = entity.get(CLUSTERS);
+    if (clusters instanceof Map) {
+      for (Object overrides : ((Map<?, ?>) clusters).values()) {
+        if (overrides instanceof Map) {
+          values.add(((Map<?, ?>) overrides).get(property));
+        }
+      }
+    }
+    return values.stream().filter(Objects::nonNull).collect(Collectors.toList());
   }
 
   private static Map<String, Object> clusterDefaults(Optional<Map<String, Object>> maybeDefaults, String cluster){

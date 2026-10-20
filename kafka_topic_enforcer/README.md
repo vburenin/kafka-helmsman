@@ -138,11 +138,14 @@ unmanaged:
 
 * Existing topics whose name starts with `_` or any configured prefix are never deleted, altered or reported, and
   are omitted from `dump` output. `_` is always excluded, whether or not it is listed.
-* Configured topics must not match these prefixes, the enforcer refuses to start if they do.
+* Configured topics must not match these prefixes, the enforcer refuses to start if they do. `validate` runs the
+  same check without connecting to Kafka, so it can be used in CI. It checks every topic in the file, whatever
+  their clusters.
 * Prefixes must be non-empty and have no surrounding whitespace. Unknown keys under `unmanaged` fail the run.
 * A misspelled section name (ex: `unmanged`) is not detected. The enforcer logs the effective prefixes at startup
   (`Unmanaged topic prefixes: [...]`), check that line when rolling out a new configuration.
-* `groupPrefixes` is accepted in the same section but is only used by the ACL enforcer.
+* `groupPrefixes` and `principalPrefixes` are accepted in the same section but are only used by the ACL and quota
+  enforcers.
 
 ## Multi cluster configuration
 To avoid repetition across clusters, the topic enforcer supports multi cluster configuration as well. A sample is shown below,

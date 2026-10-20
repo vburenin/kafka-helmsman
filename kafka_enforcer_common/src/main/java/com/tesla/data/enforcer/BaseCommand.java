@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -115,6 +116,34 @@ public class BaseCommand<T> {
     return forCluster.stream()
         .map(t -> MAPPER.convertValue(t, toValueType))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Validate configured entities without connecting to Kafka, ex: in CI. A config without entities, ex: one only
+   * used to dump, has nothing to validate.
+   *
+   * @param validator checks entities as written in the config, i.e. of every cluster of a consolidated config and
+   *                  without defaults or cluster overrides applied, throws if any of them is invalid
+   * @return {@link #SUCCESS} if entities are valid or absent, {@link #FAILURE} otherwise
+   */
+  protected int validateEntities(String entitiesKey, String entitiesFileKey,
+                                 Consumer<List<Map<String, Object>>> validator) {
+    if (!cmdConfig().containsKey(entitiesKey) && !cmdConfig().containsKey(entitiesFileKey)) {
+      return SUCCESS;
+    }
+    try {
+      String key = cmdConfig().containsKey(entitiesKey) ? entitiesKey : entitiesFileKey;
+      Preconditions.checkArgument(cmdConfig().get(key) != null, "'%s' must not be empty", key);
+      List<Map<String, Object>> entities = configuredEntities(cmdConfig(), entitiesKey, entitiesFileKey);
+      Preconditions.checkArgument(!entities.contains(null), "Found an empty entry in '%s'", entitiesKey);
+      validator.accept(entities);
+    } catch (RuntimeException e) {
+      // this is the top level handler of validation, a malformed config must fail it rather than crash the command
+      LOG.error("Invalid '{}' config", entitiesKey, e);
+      return FAILURE;
+    }
+    System.out.println(entitiesKey + " config looks good!");
+    return SUCCESS;
   }
 
   // un-parsed list of configured entities

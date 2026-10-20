@@ -19,6 +19,31 @@ import java.util.Optional;
 
 public class ClusterEntitiesTest {
 
+  @Test
+  public void testPropertyValues() {
+    Map<String, Object> entity = ImmutableMap.of(
+        "principal", "base",
+        "clusters", ImmutableMap.of(
+            "a", Collections.emptyMap(),
+            "b", ImmutableMap.of("principal", "override")));
+    Assert.assertEquals(List.of("base", "override"), ClusterEntities.propertyValues(entity, "principal"));
+  }
+
+  @Test
+  public void testPropertyValuesSkipsUnset() {
+    // ex: a client only quota, with a principal for one cluster only
+    Map<String, Object> entity = ImmutableMap.of(
+        "client", "c",
+        "clusters", ImmutableMap.of("b", ImmutableMap.of("principal", "override")));
+    Assert.assertEquals(List.of("override"), ClusterEntities.propertyValues(entity, "principal"));
+  }
+
+  @Test
+  public void testPropertyValuesWithoutClusters() {
+    Assert.assertEquals(List.of("base"),
+        ClusterEntities.propertyValues(ImmutableMap.of("principal", "base"), "principal"));
+  }
+
   private static ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
   private static TypeReference<List<Map<String, Object>>> type =
       new TypeReference<List<Map<String, Object>>>() {

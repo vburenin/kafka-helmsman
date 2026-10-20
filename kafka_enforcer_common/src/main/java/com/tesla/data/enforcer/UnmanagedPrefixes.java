@@ -14,25 +14,29 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Name prefixes of resources owned by an external system. Enforcers never delete or alter existing
- * resources whose names start with one of these prefixes.
+ * Name prefixes of resources and principals owned by an external system. Enforcers never delete or alter
+ * existing resources whose names start with one of these prefixes, nor the ACLs and quotas of such principals.
  */
 public final class UnmanagedPrefixes {
 
   public static final String CONFIG_KEY = "unmanaged";
   static final String TOPIC_PREFIXES_KEY = "topicPrefixes";
   static final String GROUP_PREFIXES_KEY = "groupPrefixes";
-  private static final Set<String> SUPPORTED_KEYS = Set.of(TOPIC_PREFIXES_KEY, GROUP_PREFIXES_KEY);
+  static final String PRINCIPAL_PREFIXES_KEY = "principalPrefixes";
+  private static final Set<String> SUPPORTED_KEYS =
+      Set.of(TOPIC_PREFIXES_KEY, GROUP_PREFIXES_KEY, PRINCIPAL_PREFIXES_KEY);
 
   public static final UnmanagedPrefixes NONE =
-      new UnmanagedPrefixes(Collections.emptySet(), Collections.emptySet());
+      new UnmanagedPrefixes(Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
 
   private final Set<String> topicPrefixes;
   private final Set<String> groupPrefixes;
+  private final Set<String> principalPrefixes;
 
-  private UnmanagedPrefixes(Set<String> topicPrefixes, Set<String> groupPrefixes) {
+  private UnmanagedPrefixes(Set<String> topicPrefixes, Set<String> groupPrefixes, Set<String> principalPrefixes) {
     this.topicPrefixes = Collections.unmodifiableSet(new LinkedHashSet<>(topicPrefixes));
     this.groupPrefixes = Collections.unmodifiableSet(new LinkedHashSet<>(groupPrefixes));
+    this.principalPrefixes = Collections.unmodifiableSet(new LinkedHashSet<>(principalPrefixes));
   }
 
   /**
@@ -54,7 +58,8 @@ public final class UnmanagedPrefixes {
         .collect(Collectors.toSet());
     checkArgument(unknown.isEmpty(), "Unknown keys under '%s': %s, supported keys are %s",
         CONFIG_KEY, unknown, SUPPORTED_KEYS);
-    return new UnmanagedPrefixes(prefixes(map, TOPIC_PREFIXES_KEY), prefixes(map, GROUP_PREFIXES_KEY));
+    return new UnmanagedPrefixes(
+        prefixes(map, TOPIC_PREFIXES_KEY), prefixes(map, GROUP_PREFIXES_KEY), prefixes(map, PRINCIPAL_PREFIXES_KEY));
   }
 
   private static Set<String> prefixes(Map<?, ?> section, String key) {
@@ -86,12 +91,26 @@ public final class UnmanagedPrefixes {
     return groupPrefixes;
   }
 
+  public Set<String> principalPrefixes() {
+    return principalPrefixes;
+  }
+
   public boolean isUnmanagedTopic(String name) {
     return matches(topicPrefixes, name);
   }
 
   public boolean isUnmanagedGroup(String name) {
     return matches(groupPrefixes, name);
+  }
+
+  /**
+   * Check if a principal is owned by an external system.
+   *
+   * @param name a principal name, without its type, ex: 'app' for 'User:app'
+   * @return true if the name starts with any principal prefix
+   */
+  public boolean isUnmanagedPrincipal(String name) {
+    return matches(principalPrefixes, name);
   }
 
   /**
@@ -103,7 +122,7 @@ public final class UnmanagedPrefixes {
   public UnmanagedPrefixes withTopicPrefix(String prefix) {
     Set<String> topics = new LinkedHashSet<>(topicPrefixes);
     topics.add(validPrefix(prefix));
-    return new UnmanagedPrefixes(topics, groupPrefixes);
+    return new UnmanagedPrefixes(topics, groupPrefixes, principalPrefixes);
   }
 
   private static boolean matches(Set<String> prefixes, String name) {
@@ -112,6 +131,7 @@ public final class UnmanagedPrefixes {
 
   @Override
   public String toString() {
-    return "UnmanagedPrefixes{topicPrefixes=" + topicPrefixes + ", groupPrefixes=" + groupPrefixes + "}";
+    return "UnmanagedPrefixes{topicPrefixes=" + topicPrefixes + ", groupPrefixes=" + groupPrefixes
+        + ", principalPrefixes=" + principalPrefixes + "}";
   }
 }

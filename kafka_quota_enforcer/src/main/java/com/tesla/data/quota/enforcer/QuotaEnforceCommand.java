@@ -6,6 +6,7 @@ package com.tesla.data.quota.enforcer;
 
 import com.tesla.data.enforcer.EnforceCommand;
 import com.tesla.data.enforcer.Enforcer;
+import com.tesla.data.enforcer.UnmanagedPrefixes;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -28,9 +29,11 @@ public class QuotaEnforceCommand extends EnforceCommand<ConfiguredQuota> {
 
   @Override
   protected Enforcer<ConfiguredQuota> initEnforcer() {
+    // parse before connecting, so a bad config fails fast
+    UnmanagedPrefixes unmanaged = unmanagedPrefixes();
     this.adminClient = KafkaAdminClient.create(kafkaConfig());
     return new QuotaEnforcer(configuredEntities(ConfiguredQuota.class, "quotas", "quotasFile"),
-        new AdminClientQuotaService(adminClient), !unsafemode, dryrun);
+        new AdminClientQuotaService(adminClient), unmanaged, !unsafemode, dryrun);
   }
 
   @Override

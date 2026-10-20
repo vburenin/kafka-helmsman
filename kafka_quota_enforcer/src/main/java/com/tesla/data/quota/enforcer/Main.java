@@ -17,7 +17,7 @@ public class Main {
   public static void main(String[] args) {
     final Main main = new Main();
     final Map<String, BaseCommand<ConfiguredQuota>> commands = new HashMap<>();
-    commands.put("validate", new BaseCommand<>());
+    commands.put("validate", new ValidateCommand());
     commands.put("enforce", new QuotaEnforceCommand());
 
     final JCommander commander = new JCommander(main);

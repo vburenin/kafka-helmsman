@@ -45,16 +45,21 @@ public class AclEnforcerTest {
 
   private static final UnmanagedPrefixes UNMANAGED = UnmanagedPrefixes.from(Map.of(
       "topicPrefixes", List.of("ext-"),
-      "groupPrefixes", List.of("extgrp-")));
+      "groupPrefixes", List.of("extgrp-"),
+      "principalPrefixes", List.of("ds-")));
 
   private AclService aclService;
   private AclEnforcer enforcer;
   private List<AclBinding> acls;
 
   private static AclBinding binding(ResourceType type, String name, PatternType patternType) {
+    return binding(type, name, patternType, "User:foo");
+  }
+
+  private static AclBinding binding(ResourceType type, String name, PatternType patternType, String principal) {
     return new AclBinding(
         new ResourcePattern(type, name, patternType),
-        new AccessControlEntry("User:foo", "*", AclOperation.ALL, AclPermissionType.ALLOW));
+        new AccessControlEntry(principal, "*", AclOperation.ALL, AclPermissionType.ALLOW));
   }
 
   @Before
@@ -124,6 +129,58 @@ public class AclEnforcerTest {
   }
 
   @Test
+  public void testUnexpectedSkipsUnmanagedPrincipals() {
+    // a principal owns its bindings on every resource type, including the wildcard resource
+    AclBinding unmanagedOnTopic = binding(TOPIC, "orders", LITERAL, "User:ds-app");
+    AclBinding unmanagedOnWildcard = binding(TOPIC, ResourcePattern.WILDCARD_RESOURCE, LITERAL, "User:ds-app");
+    AclBinding unmanagedOnCluster = binding(CLUSTER, "kafka-cluster", LITERAL, "User:ds-app");
+    AclBinding unmanagedOnTransactionalId = binding(TRANSACTIONAL_ID, "txn", LITERAL, "User:ds-app");
+    // the principal type is not matched
+    AclBinding unmanagedOtherType = binding(GROUP, "readers", LITERAL, "Group:ds-team");
+    AclBinding managed = binding(TOPIC, "orders", LITERAL, "User:app");
+    AclBinding managedOtherCase = binding(TOPIC, "orders", LITERAL, "User:DS-app");
+    when(aclService.listExisting()).thenReturn(List.of(unmanagedOnTopic, unmanagedOnWildcard, unmanagedOnCluster,
+        unmanagedOnTransactionalId, unmanagedOtherType, managed, managedOtherCase));
+
+    AclEnforcer enforcer = new AclEnforcer(emptyList(), aclService, UNMANAGED, true, true);
+
+    Assert.assertEquals(Set.of(managed, managedOtherCase), new HashSet<>(enforcer.unexpected()));
+  }
+
+  @Test
+  public void testPrincipalPrefixesDoNotMatchPrincipalType() {
+    UnmanagedPrefixes userPrefix = UnmanagedPrefixes.from(Map.of("principalPrefixes", List.of("User")));
+    AclBinding user = binding(TOPIC, "orders", LITERAL, "User:app");
+    when(aclService.listExisting()).thenReturn(List.of(user));
+
+    AclEnforcer enforcer = new AclEnforcer(emptyList(), aclService, userPrefix, true, true);
+
+    Assert.assertEquals(List.of(user), enforcer.unexpected());
+  }
+
+  @Test
+  public void testWildcardPrincipalAlwaysManaged() {
+    UnmanagedPrefixes star = UnmanagedPrefixes.from(Map.of("principalPrefixes", List.of("*")));
+    AclBinding wildcardPrincipal = binding(TOPIC, "orders", LITERAL, "User:*");
+    when(aclService.listExisting()).thenReturn(List.of(wildcardPrincipal));
+
+    AclEnforcer enforcer = new AclEnforcer(emptyList(), aclService, star, true, true);
+
+    Assert.assertEquals(List.of(wildcardPrincipal), enforcer.unexpected());
+  }
+
+  @Test
+  public void testConfiguredBindingOfUnmanagedPrincipalIsStillCreated() {
+    AclBinding unmanagedPrincipal = binding(TOPIC, "orders", LITERAL, "User:ds-app");
+    when(aclService.listExisting()).thenReturn(emptyList());
+
+    AclEnforcer enforcer = new AclEnforcer(List.of(unmanagedPrincipal), aclService, UNMANAGED, true, false);
+    enforcer.createAbsent();
+
+    verify(aclService).create(List.of(unmanagedPrincipal));
+  }
+
+  @Test
   public void testConfiguredUnmanagedBindingIsStillCreated() {
     AclBinding unmanagedTopic = binding(TOPIC, "ext-orders", LITERAL);
     when(aclService.listExisting()).thenReturn(emptyList());
@@ -163,6 +220,6 @@ public class AclEnforcerTest {
     }
     Assert.assertTrue(appender.list.stream()
         .map(ILoggingEvent::getFormattedMessage)
-        .anyMatch("Unmanaged topic prefixes: [ext-], group prefixes: [extgrp-]"::equals));
+        .anyMatch("Unmanaged topic prefixes: [ext-], group prefixes: [extgrp-], principal prefixes: [ds-]"::equals));
   }
 }

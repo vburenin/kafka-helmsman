@@ -210,10 +210,12 @@ public class BaseCommandTest {
         "unmanaged:",
         "  topicPrefixes: [\"ext-\", \"vendor-\"]",
         "  groupPrefixes:",
-        "    - \"extgrp-\"");
+        "    - \"extgrp-\"",
+        "  principalPrefixes: [\"ds-\"]");
     UnmanagedPrefixes unmanaged = new BaseCommand<Dummy>(converter.convert(confStream(conf))).unmanagedPrefixes();
     Assert.assertEquals(Set.of("ext-", "vendor-"), unmanaged.topicPrefixes());
     Assert.assertEquals(Set.of("extgrp-"), unmanaged.groupPrefixes());
+    Assert.assertEquals(Set.of("ds-"), unmanaged.principalPrefixes());
   }
 
   @Test

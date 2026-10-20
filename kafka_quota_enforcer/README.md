@@ -193,3 +193,25 @@ For example, to set the default quota for each unique principal - regardless of 
 
 Setting `<default>` is functionally the same as using `--entity-default` in the `kafka-configs.sh` examples
 here: https://kafka.apache.org/documentation/#quotas
+
+## Unmanaged principals
+
+Quotas of principals owned by another system, for example a third-party tool that manages its own principals and
+their quotas, can be excluded from deletion by principal name prefix:
+
+```yaml
+unmanaged:
+  principalPrefixes: ["ds-"]
+```
+
+* Existing quotas whose `principal` starts with any of these prefixes, with or without a `client`, are never deleted
+  or altered, and are not reported as unexpected.
+* Configured quotas must not be of such principals, the enforcer refuses to start if they are, since both systems
+  would keep overwriting the quota. `validate` runs the same check without connecting to Kafka, so it can be used in
+  CI. It checks every quota in the file, including per-cluster `principal` overrides.
+* The `<default>` principal and quotas without a `principal` are always enforced.
+* Prefixes must be non-empty and have no surrounding whitespace. Unknown keys under `unmanaged` fail the run.
+* A misspelled section name (ex: `unmanged`) is not detected. The enforcer logs the effective prefixes at startup
+  (`Unmanaged principal prefixes: [...]`), check that line when rolling out a new configuration.
+* `topicPrefixes` and `groupPrefixes` are accepted in the same section but are only used by the topic and ACL
+  enforcers.

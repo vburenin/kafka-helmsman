@@ -13,6 +13,7 @@ import com.tesla.data.topic.enforcer.ConfigDrift.Type;
 
 import io.prometheus.client.Gauge;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -77,14 +78,10 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
         () -> topicService.listExisting().values(),
         (t1, t2) -> t1.getName().equals(t2.getName()),
         safemode);
-    // a topic has a single owner, managing it here as well would fight with its external owner
-    UnmanagedPrefixes allUnmanaged = unmanaged.withTopicPrefix(TopicService.INTERNAL_TOPIC_PREFIX);
-    LOG.info("Unmanaged topic prefixes: {}", allUnmanaged.topicPrefixes());
-    List<String> unmanagedInConfig = configuredTopics.stream()
-        .map(ConfiguredTopic::getName)
-        .filter(allUnmanaged::isUnmanagedTopic)
-        .collect(Collectors.toList());
-    checkArgument(unmanagedInConfig.isEmpty(), "Unmanaged topics found in config: %s", unmanagedInConfig);
+    LOG.info("Unmanaged topic prefixes: {}",
+        unmanaged.withTopicPrefix(TopicService.INTERNAL_TOPIC_PREFIX).topicPrefixes());
+    checkNoUnmanagedTopics(
+        configuredTopics.stream().map(ConfiguredTopic::getName).collect(Collectors.toList()), unmanaged);
     this.topicService = topicService;
     this.configDrift = configDrift;
     this.configDriftSafetyFilters =
@@ -96,6 +93,23 @@ public class TopicEnforcer extends Enforcer<ConfiguredTopic> {
   public TopicEnforcer(
       TopicService topicService, List<ConfiguredTopic> configuredTopics, boolean safemode) {
     this(topicService, configuredTopics, new ConfigDrift(), safemode);
+  }
+
+  /**
+   * Check that none of the configured topics is unmanaged. A topic has a single owner, managing it here
+   * as well would fight with its external owner.
+   *
+   * @param topicNames names of configured topics
+   * @param unmanaged  prefixes of topics owned by an external system;
+   *                   {@link TopicService#INTERNAL_TOPIC_PREFIX} is always unmanaged
+   * @throws IllegalArgumentException if any of the topics is unmanaged
+   */
+  static void checkNoUnmanagedTopics(Collection<String> topicNames, UnmanagedPrefixes unmanaged) {
+    UnmanagedPrefixes allUnmanaged = unmanaged.withTopicPrefix(TopicService.INTERNAL_TOPIC_PREFIX);
+    List<String> unmanagedInConfig = topicNames.stream()
+        .filter(allUnmanaged::isUnmanagedTopic)
+        .collect(Collectors.toList());
+    checkArgument(unmanagedInConfig.isEmpty(), "Unmanaged topics found in config: %s", unmanagedInConfig);
   }
 
   /**

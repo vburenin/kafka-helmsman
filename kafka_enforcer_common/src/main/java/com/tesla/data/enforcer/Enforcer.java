@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -105,16 +106,32 @@ public abstract class Enforcer<T> {
   }
 
   /**
-   * Get a list of entities that are not expected to be present, but they are.
+   * Check if an existing entity is owned by an external system, such entities are never reported as unexpected
+   * nor deleted. Default behavior is that no entity is.
+   *
+   * @param entity an existing entity
+   * @return true if the entity is unmanaged
+   */
+  protected boolean isUnmanaged(T entity) {
+    return false;
+  }
+
+  /**
+   * Get a list of entities that are not expected to be present, but they are. Unmanaged entities are excluded.
    *
    * @return a list of entities
    */
   public List<T> unexpected() {
-    return Collections.unmodifiableList(
-        existing.get()
-            .stream()
-            .filter(e -> this.configured.stream().noneMatch(c -> isEqual.test(c, e)))
-            .collect(Collectors.toList()));
+    Map<Boolean, List<T>> byUnmanaged = existing.get()
+        .stream()
+        .filter(e -> this.configured.stream().noneMatch(c -> isEqual.test(c, e)))
+        .collect(Collectors.partitioningBy(this::isUnmanaged));
+    List<T> skipped = byUnmanaged.get(true);
+    if (!skipped.isEmpty()) {
+      LOG.info("Skipping {} un-configured unmanaged entities.", skipped.size());
+      LOG.debug("Skipped entities: {}", skipped);
+    }
+    return Collections.unmodifiableList(byUnmanaged.get(false));
   }
 
   /**

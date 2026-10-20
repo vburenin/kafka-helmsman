@@ -39,25 +39,32 @@ acls:
 
 `aclsFile: /path/to/acls.yaml` can be used instead of `acls`.
 
-## Unmanaged resources
+## Unmanaged resources and principals
 
-ACLs on resources owned by another system, for example a third-party tool that manages its own topics and their ACLs,
-can be excluded from deletion by resource name prefix:
+ACLs owned by another system, for example a third-party tool that manages its own topics or principals and their ACLs,
+can be excluded from deletion by resource or principal name prefix:
 
 ```yaml
 unmanaged:
   topicPrefixes: ["ext-", "vendor-"]   # TOPIC ACLs whose resource name starts with any of these
   groupPrefixes: ["ext-"]              # GROUP ACLs whose resource name starts with any of these
+  principalPrefixes: ["ds-"]           # ACLs of any resource whose principal name starts with any of these
 ```
 
-* Existing ACLs on matching resources are never deleted and are not reported as unexpected.
-* Configured ACLs on matching resources are still created. Removing such an ACL from the configuration does **not**
-  delete it from the cluster, the owning system is responsible for cleaning it up.
-* ACLs on the wildcard resource `*` are always enforced.
+* Existing ACLs on matching resources, or of matching principals, are never deleted and are not reported as
+  unexpected.
+* Configured ACLs on matching resources, or of matching principals, are still created. Removing such an ACL from the
+  configuration does **not** delete it from the cluster, the owning system is responsible for cleaning it up.
+* Principal prefixes match the principal name without its type: `ds-` matches `User:ds-app` and `Group:ds-team`. They
+  apply to ACLs on any resource, including CLUSTER, TRANSACTIONAL_ID and the wildcard resource `*`, so the owning
+  system can grant its principals any access without it being removed.
+* ACLs of the wildcard principal `User:*` are always enforced.
+* Resource prefixes never match the wildcard resource `*`.
 * A PREFIXED ACL is unmanaged only if its own name starts with a configured prefix. With prefix `ext-`, a PREFIXED
   ACL on `ext` is still enforced, since it covers more than the unmanaged namespace.
-* CLUSTER and TRANSACTIONAL_ID ACLs are always enforced.
+* Resource prefixes do not apply to CLUSTER and TRANSACTIONAL_ID ACLs.
 * Unlike the topic enforcer, `_` is not excluded unless it is listed.
 * Prefixes must be non-empty and have no surrounding whitespace. Unknown keys under `unmanaged` fail the run.
 * A misspelled section name (ex: `unmanged`) is not detected. The enforcer logs the effective prefixes at startup
-  (`Unmanaged topic prefixes: [...], group prefixes: [...]`), check that line when rolling out a new configuration.
+  (`Unmanaged topic prefixes: [...], group prefixes: [...], principal prefixes: [...]`), check that line when rolling
+  out a new configuration.

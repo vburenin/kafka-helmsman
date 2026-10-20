@@ -16,8 +16,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class EnforcerTest {
 
@@ -88,6 +90,24 @@ public class EnforcerTest {
     enforcer = new DummyEnforcer(emptyList(), Collections::emptyList, false);
   }
 
+  @Test
+  public void testUnexpectedSkipsUnmanaged() {
+    Dummy managed = new Dummy("x", emptyMap());
+    Dummy unmanaged = new Dummy("ext-x", emptyMap());
+    enforcer = new ExtSkippingEnforcer(dummies, () -> Arrays.asList(managed, unmanaged));
+    Assert.assertEquals(singletonList(managed), enforcer.unexpected());
+  }
+
+  @Test
+  public void testDeleteUnexpectedLeavesUnmanaged() {
+    Dummy stale = new Dummy("x", emptyMap());
+    enforcer = spy(new ExtSkippingEnforcer(dummies,
+        () -> Arrays.asList(stale, new Dummy("ext-x", emptyMap()), new Dummy("ext-y", emptyMap()))));
+    // the deletion threshold is computed after skipping unmanaged entities, 1 of 2 configured is permissible
+    enforcer.deleteUnexpected();
+    verify(enforcer).delete(singletonList(stale));
+  }
+
   @Test(expected = IllegalStateException.class)
   public void testTooManyBeingDeleted() {
     enforcer =
@@ -97,5 +117,17 @@ public class EnforcerTest {
             false);
     // should not be allowed as we are deleting lot of dummies!
     enforcer.deleteUnexpected();
+  }
+
+  // treats dummies prefixed with 'ext-' as owned by an external system
+  private static class ExtSkippingEnforcer extends DummyEnforcer {
+    ExtSkippingEnforcer(List<Dummy> configured, Supplier<Collection<Dummy>> existing) {
+      super(configured, existing, false);
+    }
+
+    @Override
+    protected boolean isUnmanaged(Dummy dummy) {
+      return dummy.name.startsWith("ext-");
+    }
   }
 }

@@ -29,6 +29,17 @@ java_test(
 )
 
 java_test(
+    name = "ValidateCommandTest",
+    srcs = [
+        "ValidateCommandTest.java",
+    ],
+    deps = [
+        "//kafka_enforcer_common/src/main/java/com/tesla/data/enforcer",
+        "//kafka_topic_enforcer/src/main/java/com/tesla/data/topic/enforcer",
+    ],
+)
+
+java_test(
     name = "ConfigDriftTest",
     srcs = [
         "ConfigDriftTest.java",
